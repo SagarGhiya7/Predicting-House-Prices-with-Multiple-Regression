@@ -1,0 +1,192 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+Importing the dataset
+```{r}
+library(readxl)
+uffidata <- read_excel("C:/Users/Sagar Ghiya/Desktop/Practicum2/uffidata.xlsx")
+df <- data.frame(uffidata)
+```
+
+
+Exploring the structure of the data
+
+```{r}
+str(df)
+```
+
+
+#Part1
+
+Checking for outliers. For this problem, outliers are those which are 3 standard deviations apart from mean.
+Figuring out attributes that have outliers.
+
+```{r}
+k <- vector()
+for(i in 1:ncol(df)) {
+    k[i] <- sum(abs((df[,i] - mean(df[,i]))/sd(df[,i]))>3)
+}   
+k
+```
+
+Yes there are outliers in the dataset.
+
+From above results, Columns 3, 10 and 12 have outliers.
+
+So sale price, living area and pool have outliers. Now pool only has values 0 and 1. It shows outliers due to very few values of '1'. So we can ignore outliers for pool attribute.
+
+To figure out outliers for sale price and living area, let's plot a scatter plot to see which values would actually affect our analysis.
+
+From the scatter plot we observe that there is only 1 value of sale price and living area_SF which is very far and might ruin our analysis.
+So removing that particular row from dataset.
+
+```{r}
+library(ggplot2)
+ggplot(df, aes(Living.Area_SF, Sale.Price)) + geom_point()
+```
+
+```{r}
+library(dplyr)
+df1 <- df %>% filter(Sale.Price<300000)
+```
+
+Exploring again.
+Now it can be seen that all values look decent to fit our multiple regression model.
+
+
+Thus we have succesfully dealt with outliers.
+
+
+```{r}
+ggplot(df1, aes(Living.Area_SF, Sale.Price)) + geom_point()
+```
+#Part2
+
+pairs.panels is ideal function for this question as it serves all purposes. It gives histogram to check for normality, correlation between response variable and other features and correlation between features(collinearity).
+
+Plotting with pairs.panels for visualization.
+Sale price is distributed normally and hence is suitable for parametric approaches.
+
+As it can be seen sale price is decently correlated with some features such as living space and not so much with a few. However less correlated features will be removed when we implement backfitting.
+
+The predictor variables are not extremely correlated. There are no two variables with correlation more than 0.5 or less than -0.5. So collinearity should not be a problem here.
+
+```{r}
+library(psych)
+pairs.panels(df1)
+```
+
+#Part3
+No, the presence or absence of UFFI alone is not enough to predict sale price as the correlation between two is only -0.12. There are other features which are more correlated and infact more important than UFFI for prediction.
+
+#Part4
+
+Implementing the multiple regression model and using backfitting to determine significant features using AIC.
+
+```{r}
+model <- step(lm(Sale.Price ~. , data=df1), type='backward')
+```
+
+
+Thus we get following as our optimal model 
+
+```{r}
+summary(model)
+```
+
+Yes UFFI is a significant predictor variable when taken with full set of variables. This can be observed from above results. 
+
+#Part 5
+
+Multiple regression model is built above. The model is 
+
+Sale Price = -8.680e+06 + 4.339e+03*Year.Sold - 7.018e+03*UFFI.IN + 1.072e+01*Bsmnt.Fin_SF + 1.947e+00*Lot.Area + 6.707e+03*Enc.Pk.Spaces + 6.070e+01*Living.Area_SF
+
+
+Adjusted R squared = 0.7784. 
+P values for principal components can be observed from the above summary.
+
+Following gives the RMSE of our model.
+```{r}
+RMSE <- function(residuals) {
+  sqrt(mean(residuals^2))
+}
+```
+
+
+```{r}
+RMSE(model$residuals)
+```
+
+Thus RMSE of the model is 15237.42
+
+#Part6
+
+Regression equation is:
+
+Sale.Price = -8.680e+06 + 4.339e+03*Year.Sold - 7.018e+03*UFFI.IN + 1.072e+01*Bsmnt.Fin_SF + 1.947*Lot.Area + 6.707e+03*Enc.Pk.Spaces + 6.070e+01*Living.Area_SF
+
+On average, 1 unit of UFFI will decrease the price of property by $7018
+
+#Part7
+
+From the model it can be observed that year sold is an important criteria to predict sale price. However it has not been given. So putting the value of year as 2016 which is most recent.
+
+```{r}
+table(df1$Year.Sold)
+```
+
+#Without UFFI
+```{r}
+newdata1 <- data.frame(2016,0,1,1,0.000,5000,2,1700,1,0)
+colnames(newdata1) <- c('Year.Sold','UFFI.IN', 'Brick.ext', 'X45.Yrs', 'Bsmnt.Fin_SF', 'Lot.Area','Enc.Pk.Spaces', 'Living.Area_SF', 'Central.Air','Pool')
+```
+
+Making predictions 
+
+```{r}
+ans1 <- predict(model,newdata1)
+ans1
+```
+Calculating 95 % confidence intervals.
+
+```{r}
+low_bound <- ans1 - 1.96*15810
+high_bound <- ans1 + 1.96*15810
+low_bound
+high_bound
+```
+
+#WithUFFI
+
+```{r}
+newdata2 <- data.frame(2016,1,1,1,0.000,5000,2,1700,1,0)
+colnames(newdata2) <- c('Year.Sold','UFFI.IN', 'Brick.ext', 'X45.Yrs', 'Bsmnt.Fin_SF', 'Lot.Area','Enc.Pk.Spaces', 'Living.Area_SF', 'Central.Air','Pool')
+```
+
+
+Prediction of sale price with UFFI
+
+```{r}
+ans2 <- predict(model,newdata2)
+ans2
+```
+
+Calculating 95% confidence intervals.
+
+```{r}
+l_bound <- ans2 - 1.96*15810
+h_bound <- ans2 + 1.96*15810
+l_bound
+h_bound
+```
+
+#Part8
+
+Client overpayed: 215000 - 187578.8 = $27,421.2
+So compensation of $27,421.2 is justified.
